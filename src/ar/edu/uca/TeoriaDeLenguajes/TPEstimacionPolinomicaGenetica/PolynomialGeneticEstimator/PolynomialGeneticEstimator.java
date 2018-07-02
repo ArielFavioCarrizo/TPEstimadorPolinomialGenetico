@@ -4,102 +4,185 @@ import java.util.function.Function;
 
 import javafx.util.Pair;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 public final class PolynomialGeneticEstimator {
-	private float[] originalImageValues;
+	private final float[] domainValues;
+	private final float[] originalImageValues;
 	
-	private float minX;
-	private float maxX;
+	private final List<Pair<Individual, Float>> poblation;
 	
-	private int numberOfDomainSamples;
+	private final EvolutionConfig evolutionConfig;
+	
+	private int iterationNumber;
 	
 	/**
-	 * @post Crea un estimador con la funciï¿½n objetivo de reales a reales,
-	 * 		 el intervalo de estimaciï¿½n, y la cantidad de muestras deseadas
+	 * @post Crea un estimador con la función objetivo de reales a reales, la
+	 * 		 cantidad de muestras de la función,
+	 * 		 el intervalo de estimación, los coeficientes iniciales,
+	 * 		 y la configuración de evolución
 	 */
-	public PolynomialGeneticEstimator(Function<Float, Float> function, float minX, float maxX, int numberOfSamples) {
-		if ( function == null ) {
-			throw new NullPointerException();
+	public PolynomialGeneticEstimator(Function<Float, Float> function, int numberOfFunctionSamples, float minX, float maxX, float[] initialCoefficients, EvolutionConfig evolutionConfig) {
+		Common.checkNotNull("function", function);
+		if ( numberOfFunctionSamples <= 1 ) {
+			throw new IllegalArgumentException("Expected numberOfFunctionSamples > 1");
 		}
 		
-		if ( numberOfSamples <= 0 ) {
-			throw new IllegalArgumentException("Expected positive number of samples");
-		}
+		Common.checkNotNull("evolutionConfig", evolutionConfig);
 		
 		if ( !(maxX > minX) ) {
 			throw new IllegalArgumentException("Expected maxX > minX");
 		}
 		
-		this.minX = minX;
-		this.maxX = maxX;
-		this.numberOfDomainSamples = numberOfSamples;
+		Function<Float, Float> interpolatedDomainValue = t -> minX + ( maxX - minX ) * (float) t;
+		
+		this.domainValues = new float[numberOfFunctionSamples];
+		for ( int i = 0; i<numberOfFunctionSamples; i++ ) {
+			this.domainValues[i] = interpolatedDomainValue.apply((i + Common.getRng().nextFloat()) / (float) numberOfFunctionSamples);
+		}
+		
+		this.evolutionConfig = evolutionConfig;
 		
 		this.originalImageValues = this.imageSamples(function);
+		
+		Individual referenceIndividual = new Individual(initialCoefficients);
+		this.poblation = new ArrayList<Pair<Individual, Float>>();
+
+		Float deltaMax = this.evolutionConfig.getMutationDeltaByIteration().apply(0);
+		
+		for ( int i=0; i<evolutionConfig.getPoblationSize(); i++ ) {
+			this.poblation.add( individualWithQuadraticError( referenceIndividual.mutate(deltaMax) ) );
+		}
+		
+		this.sortPoblation();
+		
+		this.iterationNumber = 1;
 	}
 	
 	/**
-	 * @post Devuelve el nï¿½mero de muestras de la imagen
-	 * 		 de la funciï¿½n especificada
+	 * @post Devuelve el número de muestras de la imagen
+	 * 		 de la función especificada, con los valores del dominio
 	 */
-    private float[] imageSamples(Function<Float, Float> function) {
-    	float[] imageSamples = new float[this.numberOfDomainSamples];
-    	
-    	for ( int i = 0; i<this.numberOfDomainSamples; i++ ) {
-    		imageSamples[i] = function.apply( this.minX + ( this.maxX - this.minX ) * (float) i / (this.numberOfDomainSamples-1) );
-    	}
-    	
-    	return imageSamples;
-    }
+	private float[] imageSamples(Function<Float, Float> function) {
+		float[] imageSamples = new float[this.domainValues.length];
+		
+		for ( int i = 0; i<this.domainValues.length; i++ ) {
+			imageSamples[i] = function.apply( this.domainValues[i] );
+		}
+		
+		return imageSamples;
+	}
 	
 	/**
 	 * @post Dada los valores estimados de la imagen devuelve el error
-	 * 	     cuadrï¿½tico
+	 * 	     cuadrático
 	 */
-	private float getQuadraticError(Individual individual) {
-		final float[] result = new float[1];
-		result[0] = 0.0f;
+	private float quadraticError(float[] estimatedImageValues) {
+		float result = 0.0f;
 	
-		if ( individual == null ) {
+		if ( estimatedImageValues == null ) {
 			throw new NullPointerException();
 		}
 		
-		this.originalImageValues.forEach((x,y)->{
-			float difference = individual.getEstimatedFunction().apply(x) - y;
-			result[0] += difference * difference;
-		});
+		if ( estimatedImageValues.length != this.originalImageValues.length ) {
+			throw new IllegalArgumentException("Mismatch with original samples");
+		}
 		
-		return result[0];
+		for ( int i = 0; i<estimatedImageValues.length; i++ ) {
+			float difference = estimatedImageValues[i] - this.originalImageValues[i];
+			result += difference * difference;
+		}
+		
+		return result;
 	}
 	
 	/**
-	 * @post Dado un individuo devuelve el individuo con su error cuadrï¿½tico
+	 * @post Dado un individuo devuelve el individuo con su error cuadrático
 	 * 		 medio
 	 */
 	private Pair<Individual, Float> individualWithQuadraticError(Individual individual) {
-		return new Pair<Individual, Float>(individual, getQuadraticError(individual));
+		return new Pair<Individual, Float>(individual, this.quadraticError(this.imageSamples(individual.getEstimatedFunction())));
 	}
 	
 	/**
-	 * @post Entre las miembros de la poblaciï¿½n especificada selecciona los mï¿½s aptos,
-	 * 		 con el nï¿½mero mï¿½ximo de miembros a conservar.
-	 * 		 Devuelve las mï¿½s aptos.
+	 * @post Ordena la población por error, ascendente
 	 */
-	private Pair<Individual, Float>[] selection(Pair<Individual, Float>[] poblation, int maxNumberOfMembersToConservate) {
-		Pair<Individual, Float>[] orderedIndividualsByAscendingOrder = poblation.clone();
+	private void sortPoblation() {
+		Collections.sort(this.poblation, (individual1, individual2) -> Float.compare(individual1.getValue(), individual2.getValue() ) );
+	}
+	
+	/**
+	 * @post Entre las miembros de la población selecciona los más aptos,
+	 * 		 con el número máximo de miembros a conservar.
+	 */
+	private void selection() {
+		this.sortPoblation();
 		
-		Arrays.sort(orderedIndividualsByAscendingOrder, (individual1, individual2) -> Float.compare(individual1.getValue(), individual2.getValue() ) );
+		while ( poblation.size() > this.evolutionConfig.getPoblationSize() ) {
+			poblation.remove(poblation.size()-1);
+		}
+	}
+	
+	/**
+	 * @post Entre los miembros de la población especificada realiza aleatoriamente
+	 * 		 crías
+	 */
+	private void doChilds() {
+		int originalSize = this.poblation.size();
 		
-		if ( orderedIndividualsByAscendingOrder.length > maxNumberOfMembersToConservate ) {
-			return Arrays.copyOf(orderedIndividualsByAscendingOrder, maxNumberOfMembersToConservate);
+		for ( int i = 0; i<originalSize; i++ ) {
+			for ( int j = i+1; j<originalSize; j++ ) {
+				if ( Common.getRng().nextFloat() <= this.evolutionConfig.getProbabilityOfCrossOver() ) {
+					Pair<Individual, Individual> childs = this.poblation.get(i).getKey().crossover(this.poblation.get(j).getKey());
+					Individual individual1 = childs.getKey();
+					Individual individual2 = childs.getValue();
+					
+					this.poblation.add( individualWithQuadraticError( probabilisticMutate(individual1) ) );
+					this.poblation.add( individualWithQuadraticError( probabilisticMutate(individual2) ) );
+				}
+			}
+		}
+	}
+	
+	/**
+	 * @post Dado un individuo realiza probabilísticamente una mutación
+	 */
+	private Individual probabilisticMutate(Individual individual) {
+		float deltaMax = this.evolutionConfig.getMutationDeltaByIteration().apply(this.iterationNumber);
+		
+		if ( Common.getRng().nextFloat() <= this.evolutionConfig.getProbabilityOfMutation() ) {
+			return individual.mutate(deltaMax);
 		}
 		else {
-			return orderedIndividualsByAscendingOrder;
+			return individual;
 		}
+	}
+	
+	/**
+	 * @post Realiza un ciclo
+	 */
+	public void doOneCycle() {
+		this.selection();
+		this.doChilds();
+		
+		this.iterationNumber++;
+	}
+	
+	/**
+	 * @post Devuelve el número de iteración
+	 */
+	public int getIterationNumber() {
+		return this.iterationNumber;
+	}
+	
+	/**
+	 * @post Devuelve la solución más óptima por ahora,
+	 * 		 con el error cuadrático medio
+	 */
+	public Pair<Individual, Float> getBestIndividual() {
+		return new Pair<Individual, Float>( this.poblation.get(0).getKey(), this.poblation.get(0).getValue() / (float) this.domainValues.length );
 	}
 }
