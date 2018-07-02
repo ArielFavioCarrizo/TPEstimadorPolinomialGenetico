@@ -20,7 +20,6 @@ public final class PolynomiaGeneticEstimator {
 		
 		PolynomialGeneticEstimator estimator = new PolynomialGeneticEstimator(
 				functionToEstimate,
-				20,
 				-5.0f,
 				5.0f,
 				initialCoefficients,
