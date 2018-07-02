@@ -7,10 +7,13 @@ import javafx.util.Pair;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public final class PolynomialGeneticEstimator {
-	private final float[] originalImageValues;
+	private final Map<Float,Float> originalImageValues;
 	
 	private final List<Pair<Individual, Float>> poblation;
 	
@@ -24,8 +27,8 @@ public final class PolynomialGeneticEstimator {
 	private int iterationNumber;
 	
 	/**
-	 * @post Crea un estimador con la función objetivo de reales a reales,
-	 * 		 el intervalo de estimación, los coeficientes iniciales, y la configuración de evolución
+	 * @post Crea un estimador con la funciï¿½n objetivo de reales a reales,
+	 * 		 el intervalo de estimaciï¿½n, los coeficientes iniciales, y la configuraciï¿½n de evoluciï¿½n
 	 */
 	public PolynomialGeneticEstimator(Function<Float, Float> function, float minX, float maxX, float[] initialCoefficients, EvolutionConfig evolutionConfig) {
 		Common.checkNotNull("function", function);
@@ -59,14 +62,15 @@ public final class PolynomialGeneticEstimator {
 	}
 	
 	/**
-	 * @post Devuelve el número de muestras de la imagen
-	 * 		 de la función especificada
+	 * @post Devuelve el nï¿½mero de muestras de la imagen
+	 * 		 de la funciï¿½n especificada
 	 */
-	private float[] imageSamples(Function<Float, Float> function) {
-		float[] imageSamples = new float[this.numberOfDomainNumbers];
+	private Map<Float, Float> imageSamples(Function<Float, Float> function) {
+		Map<Float, Float> imageSamples = new LinkedHashMap<>();
 		
 		for ( int i = 0; i<this.numberOfDomainNumbers; i++ ) {
-			imageSamples[i] = function.apply( this.minX + ( this.maxX - this.minX ) * (float) i / (this.numberOfDomainNumbers-1) );
+			float key = this.minX + ( this.maxX - this.minX ) * (float) i / (this.numberOfDomainNumbers-1);
+			imageSamples.put(key, function.apply( key ));
 		}
 		
 		return imageSamples;
@@ -74,45 +78,42 @@ public final class PolynomialGeneticEstimator {
 	
 	/**
 	 * @post Dada los valores estimados de la imagen devuelve el error
-	 * 	     cuadrático
+	 * 	     cuadrï¿½tico
 	 */
-	private float quadraticError(float[] estimatedImageValues) {
-		float result = 0.0f;
+	private float getQuadraticError(Individual individual) {
+		final float[] result = new float[1];
+		result[0] = 0.0f;
 	
-		if ( estimatedImageValues == null ) {
+		if ( individual == null ) {
 			throw new NullPointerException();
 		}
 		
-		if ( estimatedImageValues.length != this.originalImageValues.length ) {
-			throw new IllegalArgumentException("Mismatch with original samples");
-		}
+		this.originalImageValues.forEach((x,y)->{
+			float difference = individual.getEstimatedFunction().apply(x) - y;
+			result[0] += difference * difference;
+		});
 		
-		for ( int i = 0; i<estimatedImageValues.length; i++ ) {
-			float difference = estimatedImageValues[i] - this.originalImageValues[i];
-			result += difference * difference;
-		}
-		
-		return result;
+		return result[0];
 	}
 	
 	/**
-	 * @post Dado un individuo devuelve el individuo con su error cuadrático
+	 * @post Dado un individuo devuelve el individuo con su error cuadrï¿½tico
 	 * 		 medio
 	 */
 	private Pair<Individual, Float> individualWithQuadraticError(Individual individual) {
-		return new Pair<Individual, Float>(individual, this.quadraticError(this.imageSamples(individual.getEstimatedFunction())));
+		return new Pair<Individual, Float>(individual, getQuadraticError(individual));
 	}
 	
 	/**
-	 * @post Ordena la población por error, ascendente
+	 * @post Ordena la poblaciï¿½n por error, ascendente
 	 */
 	private void sortPoblation() {
 		Collections.sort(this.poblation, (individual1, individual2) -> Float.compare(individual1.getValue(), individual2.getValue() ) );
 	}
 	
 	/**
-	 * @post Entre las miembros de la población selecciona los más aptos,
-	 * 		 con el número máximo de miembros a conservar.
+	 * @post Entre las miembros de la poblaciï¿½n selecciona los mï¿½s aptos,
+	 * 		 con el nï¿½mero mï¿½ximo de miembros a conservar.
 	 */
 	private void selection() {
 		this.sortPoblation();
@@ -123,7 +124,7 @@ public final class PolynomialGeneticEstimator {
 	}
 	
 	/**
-	 * @post Entre los miembros de la población especificada realiza aleatoriamente
+	 * @post Entre los miembros de la poblaciï¿½n especificada realiza aleatoriamente
 	 * 		 un entrecruzamiento
 	 */
 	private void crossOver() {
@@ -143,7 +144,7 @@ public final class PolynomialGeneticEstimator {
 	}
 	
 	/**
-	 * @post Entre los miembros de la población especificada realiza una mutación
+	 * @post Entre los miembros de la poblaciï¿½n especificada realiza una mutaciï¿½n
 	 */
 	private void mutation() {
 		float deltaMax = this.evolutionConfig.getMutationDeltaByIteration().apply(this.iterationNumber);
@@ -166,15 +167,15 @@ public final class PolynomialGeneticEstimator {
 	}
 	
 	/**
-	 * @post Devuelve el número de iteración
+	 * @post Devuelve el nï¿½mero de iteraciï¿½n
 	 */
 	public int getIterationNumber() {
 		return this.iterationNumber;
 	}
 	
 	/**
-	 * @post Devuelve la solución más óptima por ahora,
-	 * 		 con el error cuadrático medio
+	 * @post Devuelve la soluciï¿½n mï¿½s ï¿½ptima por ahora,
+	 * 		 con el error cuadrï¿½tico medio
 	 */
 	public Pair<Individual, Float> getBestIndividual() {
 		return new Pair<Individual, Float>( this.poblation.get(0).getKey(), this.poblation.get(0).getValue() / (float) this.poblation.size() );
