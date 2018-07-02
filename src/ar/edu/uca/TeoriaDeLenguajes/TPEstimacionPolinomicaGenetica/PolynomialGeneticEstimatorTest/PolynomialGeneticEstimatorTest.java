@@ -7,7 +7,7 @@ import ar.edu.uca.TeoriaDeLenguajes.TPEstimacionPolinomicaGenetica.PolynomialGen
 import ar.edu.uca.TeoriaDeLenguajes.TPEstimacionPolinomicaGenetica.PolynomialGeneticEstimator.PolynomialGeneticEstimator;
 import javafx.util.Pair;
 
-public final class PolynomiaGeneticEstimator {
+public final class PolynomialGeneticEstimatorTest {
 	public static void main(String[] args) {
 		EvolutionConfig evolutionConfig = new EvolutionConfig(
 			50, 0.01f, 0.01f,
@@ -16,18 +16,18 @@ public final class PolynomiaGeneticEstimator {
 		
 		float[] initialCoefficients = new float[] { 0.1f, 0.05f, 0.025f, 0.00125f };
 		
-		Function<Float, Float> functionToEstimate = x -> x * x * x * 5.0f + x * x * 10.0f + x * 2.0f + 3.0f;
+		Function<Float, Float> functionToEstimate = x -> x * x * x * 5.0f + x * x * -10.0f + x * 2.0f + -3.0f;
 		
 		PolynomialGeneticEstimator estimator = new PolynomialGeneticEstimator(
 				functionToEstimate,
-				20,
+				40,
 				-5.0f,
 				5.0f,
 				initialCoefficients,
 				evolutionConfig
 		);
 		
-		float expectedMaxAverageQuadraticError = 0.00001f;
+		float expectedMaxAverageQuadraticError = 0.0001f;
 		
 		float averageQuadraticError = Float.MAX_VALUE;
 		
@@ -37,7 +37,7 @@ public final class PolynomiaGeneticEstimator {
 			
 			averageQuadraticError = bestIndividual.getValue();
 			
-			System.out.println("Estimated function = " + bestIndividual );
+			System.out.println("Estimated function = " + bestIndividual.getKey() );
 			System.out.println("Average quadratic error = " + averageQuadraticError );
 			
 			estimator.doOneCycle();

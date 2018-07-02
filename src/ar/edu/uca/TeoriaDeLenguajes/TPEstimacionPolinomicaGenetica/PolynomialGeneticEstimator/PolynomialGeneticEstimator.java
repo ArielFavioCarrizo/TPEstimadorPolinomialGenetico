@@ -128,34 +128,36 @@ public final class PolynomialGeneticEstimator {
 	
 	/**
 	 * @post Entre los miembros de la población especificada realiza aleatoriamente
-	 * 		 un entrecruzamiento
+	 * 		 crías
 	 */
-	private void crossOver() {
+	private void doChilds() {
 		int originalSize = this.poblation.size();
 		
 		for ( int i = 0; i<originalSize; i++ ) {
 			for ( int j = i+1; j<originalSize; j++ ) {
 				if ( Common.getRng().nextFloat() <= this.evolutionConfig.getProbabilityOfCrossOver() ) {
-					this.poblation.add(
-						individualWithQuadraticError(
-							this.poblation.get(i).getKey().crossover(this.poblation.get(j).getKey())
-						)
-					);
+					Pair<Individual, Individual> childs = this.poblation.get(i).getKey().crossover(this.poblation.get(j).getKey());
+					Individual individual1 = childs.getKey();
+					Individual individual2 = childs.getValue();
+					
+					this.poblation.add( individualWithQuadraticError( probabilisticMutate(individual1) ) );
+					this.poblation.add( individualWithQuadraticError( probabilisticMutate(individual2) ) );
 				}
 			}
 		}
 	}
 	
 	/**
-	 * @post Entre los miembros de la población especificada realiza una mutación
+	 * @post Dado un individuo realiza probabilísticamente una mutación
 	 */
-	private void mutation() {
+	private Individual probabilisticMutate(Individual individual) {
 		float deltaMax = this.evolutionConfig.getMutationDeltaByIteration().apply(this.iterationNumber);
 		
-		for ( int i = 0; i<poblation.size(); i++ ) {
-			if ( Common.getRng().nextFloat() <= this.evolutionConfig.getProbabilityOfMutation() ) {
-				this.poblation.set(i, this.individualWithQuadraticError(this.poblation.get(i).getKey().mutate(deltaMax)));
-			}
+		if ( Common.getRng().nextFloat() <= this.evolutionConfig.getProbabilityOfMutation() ) {
+			return individual.mutate(deltaMax);
+		}
+		else {
+			return individual;
 		}
 	}
 	
@@ -164,8 +166,8 @@ public final class PolynomialGeneticEstimator {
 	 */
 	public void doOneCycle() {
 		this.selection();
-		this.crossOver();
-		this.mutation();
+		this.doChilds();
+		
 		this.iterationNumber++;
 	}
 	

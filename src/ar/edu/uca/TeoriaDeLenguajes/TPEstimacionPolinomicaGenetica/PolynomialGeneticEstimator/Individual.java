@@ -4,6 +4,8 @@ import java.util.Random;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
+import javafx.util.Pair;
+
 public final class Individual {
 	private float[] coeficients;
 	private Function<Float, Float> function;
@@ -37,9 +39,9 @@ public final class Individual {
 	/**
 	 * @pre El otro individuo no puede ser nulo
 	 * @post Realiza una cruza con el individuo especificado,
-	 * 		 devolviendo otro individuo.
+	 * 		 devolviendo dos hijos
 	 */
-	public Individual crossover(Individual other) {
+	public Pair<Individual, Individual> crossover(Individual other) {
 		if ( other == null ) {
 			throw new NullPointerException();
 		}
@@ -49,13 +51,27 @@ public final class Individual {
 		}
 		
 		// Crossover uniforme
-		float[] newCoeficients = new float[this.coeficients.length];
+		float[] newCoeficients1 = new float[this.coeficients.length];
+		float[] newCoeficients2 = new float[this.coeficients.length];
 		
 		for ( int i = 0; i<this.coeficients.length; i++ ) {
-			newCoeficients[i] = Common.getRng().nextBoolean() ? other.coeficients[i] : this.coeficients[i];
+			float c1;
+			float c2;
+			
+			if ( Common.getRng().nextBoolean() ) {
+				c1 = this.coeficients[i];
+				c2 = other.coeficients[i];
+			}
+			else {
+				c2 = this.coeficients[i];
+				c1 = other.coeficients[i];
+			}
+			
+			newCoeficients1[i] = c1;
+			newCoeficients2[i] = c2;
 		}
 		
-		return new Individual(newCoeficients);
+		return new Pair<Individual, Individual>( new Individual(newCoeficients1), new Individual(newCoeficients2) );
 	}
 	
 	/**
