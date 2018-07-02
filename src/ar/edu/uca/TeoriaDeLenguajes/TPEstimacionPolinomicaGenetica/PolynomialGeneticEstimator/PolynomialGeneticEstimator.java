@@ -10,35 +10,39 @@ import java.util.Collections;
 import java.util.List;
 
 public final class PolynomialGeneticEstimator {
+	private final float[] domainValues;
 	private final float[] originalImageValues;
 	
 	private final List<Pair<Individual, Float>> poblation;
 	
-	private final float minX;
-	private final float maxX;
-	
 	private final EvolutionConfig evolutionConfig;
-	
-	private final int numberOfDomainNumbers;
 	
 	private int iterationNumber;
 	
 	/**
-	 * @post Crea un estimador con la función objetivo de reales a reales,
-	 * 		 el intervalo de estimación, los coeficientes iniciales, y la configuración de evolución
+	 * @post Crea un estimador con la función objetivo de reales a reales, la
+	 * 		 cantidad de muestras de la función,
+	 * 		 el intervalo de estimación, los coeficientes iniciales,
+	 * 		 y la configuración de evolución
 	 */
-	public PolynomialGeneticEstimator(Function<Float, Float> function, float minX, float maxX, float[] initialCoefficients, EvolutionConfig evolutionConfig) {
+	public PolynomialGeneticEstimator(Function<Float, Float> function, int numberOfFunctionSamples, float minX, float maxX, float[] initialCoefficients, EvolutionConfig evolutionConfig) {
 		Common.checkNotNull("function", function);
+		if ( numberOfFunctionSamples <= 1 ) {
+			throw new IllegalArgumentException("Expected numberOfFunctionSamples > 1");
+		}
+		
 		Common.checkNotNull("evolutionConfig", evolutionConfig);
 		
 		if ( !(maxX > minX) ) {
 			throw new IllegalArgumentException("Expected maxX > minX");
 		}
 		
-		this.minX = minX;
-		this.maxX = maxX;
+		Function<Float, Float> interpolatedDomainValue = t -> minX + ( maxX - minX ) * (float) t;
 		
-		this.numberOfDomainNumbers = initialCoefficients.length;
+		this.domainValues = new float[numberOfFunctionSamples];
+		for ( int i = 0; i<numberOfFunctionSamples; i++ ) {
+			this.domainValues[i] = interpolatedDomainValue.apply((i + Common.getRng().nextFloat()) / (float) numberOfFunctionSamples);
+		}
 		
 		this.evolutionConfig = evolutionConfig;
 		
@@ -60,13 +64,13 @@ public final class PolynomialGeneticEstimator {
 	
 	/**
 	 * @post Devuelve el número de muestras de la imagen
-	 * 		 de la función especificada
+	 * 		 de la función especificada, con los valores del dominio
 	 */
 	private float[] imageSamples(Function<Float, Float> function) {
-		float[] imageSamples = new float[this.numberOfDomainNumbers];
+		float[] imageSamples = new float[this.domainValues.length];
 		
-		for ( int i = 0; i<this.numberOfDomainNumbers; i++ ) {
-			imageSamples[i] = function.apply( this.minX + ( this.maxX - this.minX ) * (float) i / (this.numberOfDomainNumbers-1) );
+		for ( int i = 0; i<this.domainValues.length; i++ ) {
+			imageSamples[i] = function.apply( this.domainValues[i] );
 		}
 		
 		return imageSamples;
@@ -177,6 +181,6 @@ public final class PolynomialGeneticEstimator {
 	 * 		 con el error cuadrático medio
 	 */
 	public Pair<Individual, Float> getBestIndividual() {
-		return new Pair<Individual, Float>( this.poblation.get(0).getKey(), this.poblation.get(0).getValue() / (float) this.poblation.size() );
+		return new Pair<Individual, Float>( this.poblation.get(0).getKey(), this.poblation.get(0).getValue() / (float) this.domainValues.length );
 	}
 }

@@ -8,8 +8,6 @@ public final class Individual {
 	private float[] coeficients;
 	private Function<Float, Float> function;
 	
-	
-	
 	/**
 	 * @post Crea un individuo con los coeficientes
 	 * 		 especificados
